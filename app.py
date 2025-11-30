@@ -18,7 +18,9 @@ class Location(db.Model):
     source = db.Column(db.String(50))  # "browser" or "cell"
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
-db.create_all()
+with app.app_context():
+    db.create_all()
+
 
 @app.route("/")
 def index():
@@ -85,3 +87,4 @@ def devices():
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT",5000)))
+
