@@ -1,0 +1,77 @@
+<!-- templates/index.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Phone Tracker (Web)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    body { font-family: Arial; margin:0; padding:0; }
+    #map { height: 60vh; }
+    .controls { padding:10px; }
+    .btn { padding:10px 14px; background:#007bff; color:white; border:none; border-radius:6px; }
+    .notice { color:#666; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <h3>Show your current device on map</h3>
+    <button id="locBtn" class="btn">Share my location</button>
+    <div id="status" class="notice"></div>
+    <div id="deviceIdRow" style="margin-top:8px;">
+      <label>Device ID (any unique name): </label>
+      <input id="deviceId" placeholder="device123" />
+    </div>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const status = document.getElementById('status');
+    const btn = document.getElementById('locBtn');
+    const deviceIdInput = document.getElementById('deviceId');
+
+    const map = L.map('map').setView([20,0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+    let marker;
+
+    btn.onclick = async () => {
+      const deviceId = (deviceIdInput.value || ('dev-' + Math.random().toString(36).slice(2,9)));
+      status.textContent = 'Requesting location from browser...';
+      if (!navigator.geolocation) {
+        status.textContent = 'Geolocation not supported in this browser.';
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const accuracy = pos.coords.accuracy;
+        status.textContent = `Got location (accuracy ${Math.round(accuracy)} m). Sending to server...`;
+
+        // send to backend
+        try {
+          const resp = await fetch('/update_location', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ device_id: deviceId, lat, lng, accuracy })
+          });
+          const j = await resp.json();
+          status.textContent = 'Saved: ' + JSON.stringify(j);
+        } catch (e) {
+          status.textContent = 'Error sending to server: ' + e.message;
+        }
+
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([lat,lng]).addTo(map).bindPopup('You are here').openPopup();
+        map.setView([lat,lng], 16);
+      }, (err) => {
+        console.warn(err);
+        status.textContent = 'Could not get browser location: ' + err.message;
+        // Suggest installing companion app for cell-tower based tracking
+        status.innerHTML += '<br/>If you denied permission or GPS is off, install the companion app (native) for improved tracking.';
+      }, { enableHighAccuracy: true, timeout:10000 });
+    };
+  </script>
+</body>
+</html>
